@@ -1,17 +1,16 @@
-from PIL import Image, ImageDraw, ImageFont
+from PIL import ImageFont
 import time
 import serial
 
-# 시리얼 포트 설정 (테스트용으로 실제 포트 연결 필요)
-# 테스트 시 포트 설정 부분 주석 처리 또는 가상 포트로 대체
- ser = serial.Serial(
-     port='/dev/ttyAMA3',  # 라즈베리파이의 시리얼 포트
-     baudrate=9600,        # Arduino와 동일한 속도로 설정
-     timeout=1,
-     bytesize=serial.EIGHTBITS,
-     parity=serial.PARITY_NONE,
-     stopbits=serial.STOPBITS_ONE
- )
+# 시리얼 포트 설정
+ser = serial.Serial(
+    port='/dev/ttyAMA1',  # 라즈베리파이의 시리얼 포트
+    baudrate=9600,        # Arduino와 동일한 속도로 설정
+    timeout=1,
+    bytesize=serial.EIGHTBITS,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE
+)
 
 # 폰트 설정 (TTF 폰트 사용)
 font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
@@ -50,16 +49,18 @@ def display_texts():
 
 # 시리얼 데이터 송신 함수
 def send_serial_data(data):
+    ser.write((data + '\n').encode())  # 문자열을 바이트로 인코딩하여 전송
     print(f"송신 데이터: {data}")
-    # 실제 송신 코드: ser.write((data + '\n').encode())
 
-# 시리얼 데이터 수신 함수 수정 (테스트용)
+# 시리얼 데이터 수신 함수
 def receive_serial_data():
-    # 테스트 시 가상 데이터 반환
-    test_data = input("수신 데이터 입력 (예: toggle_a, toggle_b, timers have been reset): ").strip()
-    if test_data:
-        print(f"수신된 데이터: {test_data}")
-        return test_data
+    if ser.in_waiting > 0:
+        try:
+            data = ser.readline().decode('utf-8', errors='ignore').strip()
+            print(f"수신된 데이터: {data}")
+            return data
+        except Exception as e:
+            print(f"시리얼 데이터 수신 오류: {e}")
     return None
 
 # 스톱워치 제어 함수
@@ -120,4 +121,5 @@ try:
 
         time.sleep(0.01)  # 딜레이
 except KeyboardInterrupt:
-    print("프로그램 종료")
+    ser.close()  # 시리얼 포트 닫기
+    print("프로그램을 종료합니다.")
