@@ -1,0 +1,125 @@
+import os
+import time
+import serial
+
+# 시리얼 포트 설정
+ser = serial.Serial(
+    port='/dev/ttyAMA1',  # 라즈베리파이의 시리얼 포트
+    baudrate=9600,        # Arduino와 동일한 속도로 설정
+    timeout=1,
+    bytesize=serial.EIGHTBITS,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE
+)
+
+# 스톱워치 상태
+running_a = False
+running_b = False
+start_time_a = 0
+start_time_b = 0
+elapsed_time_a = 0  # A의 누적 시간 저장
+elapsed_time_b = 0  # B의 누적 시간 저장
+last_time_a = "00:00:00"
+last_time_b = "00:00:00"
+
+# 스톱워치 텍스트 업데이트 함수
+def update_stopwatch_texts():
+    global last_time_a, last_time_b
+    if running_a:
+        elapsed_time_a = time.time() - start_time_a
+        minutes_a = int(elapsed_time_a // 60)
+        seconds_a = int(elapsed_time_a % 60)
+        milliseconds_a = int((elapsed_time_a % 1) * 100)
+        last_time_a = f"{minutes_a:02}:{seconds_a:02}.{milliseconds_a:02}"
+
+    if running_b:
+        elapsed_time_b = time.time() - start_time_b
+        minutes_b = int(elapsed_time_b // 60)
+        seconds_b = int(elapsed_time_b % 60)
+        milliseconds_b = int((elapsed_time_b % 1) * 100)
+        last_time_b = f"{minutes_b:02}:{seconds_b:02}.{milliseconds_b:02}"
+
+# 터미널 화면을 지우는 함수
+def clear_console():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+# 텍스트 표시 함수 (콘솔에서 움직이는 것처럼 출력)
+def display_texts():
+    clear_console()
+    print(f"==== 타이머 상태 ====")
+    print(f"A: {last_time_a}")
+    print(f"B: {last_time_b}")
+    print("=====================")
+
+# 시리얼 데이터 송신 함수
+def send_serial_data(data):
+    ser.write((data + '\n').encode())  # 문자열을 바이트로 인코딩하여 전송
+    print(f"송신 데이터: {data}")
+
+# 시리얼 데이터 수신 함수
+def receive_serial_data():
+    if ser.in_waiting > 0:
+        try:
+            data = ser.readline().decode('utf-8', errors='ignore').strip()
+            return data
+        except Exception as e:
+            print(f"시리얼 데이터 수신 오류: {e}")
+    return None
+
+# 스톱워치 제어 함수
+def toggle_stopwatch_a():
+    global running_a, start_time_a, elapsed_time_a
+    if not running_a:
+        start_time_a = time.time() - elapsed_time_a  # 누적 시간을 고려하여 시작 시간 설정
+        running_a = True
+    else:
+        running_a = False
+        elapsed_time_a = time.time() - start_time_a  # 현재까지의 경과 시간 저장
+        send_serial_data(last_time_a)
+
+def toggle_stopwatch_b():
+    global running_b, start_time_b, elapsed_time_b
+    if not running_b:
+        start_time_b = time.time() - elapsed_time_b  # 누적 시간을 고려하여 시작 시간 설정
+        running_b = True
+    else:
+        running_b = False
+        elapsed_time_b = time.time() - start_time_b  # 현재까지의 경과 시간 저장
+        send_serial_data(last_time_b)
+
+# 리셋 함수
+def reset_stopwatch_a():
+    global running_a, start_time_a, elapsed_time_a, last_time_a
+    running_a = False
+    start_time_a = 0
+    elapsed_time_a = 0
+    last_time_a = "00:00:00"
+
+def reset_stopwatch_b():
+    global running_b, start_time_b, elapsed_time_b, last_time_b
+    running_b = False
+    start_time_b = 0
+    elapsed_time_b = 0
+    last_time_b = "00:00:00"
+
+# 테스트 실행 루프
+try:
+    while True:
+        update_stopwatch_texts()
+        display_texts()
+
+        # 시리얼 데이터 수신 처리
+        received_data = receive_serial_data()
+        if received_data:
+            if "toggle_a" in received_data.lower():  # A 타이머 토글
+                toggle_stopwatch_a()
+            elif "toggle_b" in received_data.lower():  # B 타이머 토글
+                toggle_stopwatch_b()
+            elif "timers have been reset" in received_data.lower():  # 리셋
+                reset_stopwatch_a()
+                reset_stopwatch_b()
+
+        time.sleep(0.1)  # 갱신 주기
+except KeyboardInterrupt:
+    ser.close()  # 시리얼 포트 닫기
+    print("프로그램을 종료합니다.")
